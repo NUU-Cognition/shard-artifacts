@@ -41,11 +41,13 @@ To make a new artifact, use [[dev-sk-artf-create_artifact]]. To read an artifact
    ```bash
    flint orbh artifacts publish "<file.html>" --update "<reference>" --json                   # the bytes of a file (at most 10 000 000 bytes)
    flint orbh artifacts publish "<file.html>" --update "<reference>" --title "<title>" --json  # also a new title
+   flint orbh artifacts publish "<folder>" --update "<reference>" --json                      # a folder: its HTML page and its media files
    ```
 
    - The JSON has `version` (the new number) and `created: false`. `added.already: true` is correct: your session held the object before.
    - A new version keeps the audience of the artifact. `--respond me|org|off` changes it in the same publish.
    - A session with no file can use the object tool: `flint orbh objects use "<address>" publish_version --html-file "<file.html>"`. It takes at most 2 000 000 characters. Use the CLI for a larger file.
+   - **A folder version** (`versions` shows `<n> files`): publish the whole folder again with `--update`. Each version has its own files: the object tool `publish_version` and a publish of one file make a version with no media, and the relative links of the page then fail.
    - The rules of the HTML file are in [[dev-sk-artf-create_artifact]], step 2.
 
    **A new title or description.** No new version.

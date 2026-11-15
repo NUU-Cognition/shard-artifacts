@@ -38,9 +38,13 @@ The code is in two repositories. `main`: `apps/nuu-artifacts` (the web app in `s
 
 After the commit, the CLI adds the artifact to the session as an object (with a subscribe when the page takes responses).
 
+**A folder** (`publish <folder>`): the begin sends the path, the size, and the SHA-256 of each file. The backend checks each path, sets each type from the extension, and answers one signed upload URL for each file. Each file is one object at `artifacts/<org>/<id>/v<n>/<path>`. The commit checks the size and the SHA-256 of each stored file. The version keeps its HTML page as its key, and the count and the bytes of its files.
+
 ## The Path of a Read
 
-**A person.** The viewer page asks the backend for the artifact, and the backend checks the access of the person. Then the viewer page asks for one signed read URL of the version. The URL lives about one hour, and the web app gets a new one before the end. The frame of the viewer page loads the HTML from NUU Storage with that URL.
+**A person.** The viewer page asks the backend for the artifact, and the backend checks the access of the person. Then the viewer page asks for one signed read URL of the version. The URL lives one to two hours, and the web app gets a new one before the end. The frame of the viewer page loads the HTML from NUU Storage with that URL.
+
+**A folder version.** The read URL is `<storage>/p/<token>/<folder>/<entry>`: a FOLDER token in the PATH, for the folder of that one version. The browser resolves a relative link of the page (`media/clip.mp4`) to `<storage>/p/<token>/<folder>/media/clip.mp4`, so each link keeps the token, in the frame and in a new tab. NUU Storage refuses each key outside the folder, and each write. The responses of `/p/` have `Access-Control-Allow-Origin: *`, so the fonts, the module scripts, and the `fetch` reads of the page work from its sandbox. A page that stays open longer than the URL (one to two hours) cannot load a file late: load the page again. The details: `apps/nuu-artifacts/MEDIA.md` in the monorepo.
 
 **An agent.** `flint orbh artifacts get` reads the facts. With `--source` or `--out`, the CLI gets a signed read URL and reads the bytes itself. It never prints the URL. The connector gives the same facts and the source as an object (`flint orbh objects get`).
 
@@ -92,10 +96,11 @@ An artifact is an object of the Objects Protocol, so each NUU tool that knows ob
 
 | Limit | Value |
 |---|---|
-| One version | One HTML file, at most 10 000 000 bytes, `text/html; charset=utf-8` |
+| One version | One HTML file, at most 10 000 000 bytes, `text/html; charset=utf-8`; or a folder |
+| A folder version | At most 200 files, 100 MB for each file, 250 MB in all; its HTML page at most 10 000 000 bytes; a path at most 200 characters; the types of the list of the server |
 | Title, description | At most 200 and 2000 characters |
 | Versions of one artifact | At most 200 |
-| Uploads that one person starts in 24 hours | At most 300 |
+| Uploads that one person starts in 24 hours | At most 300, and at most 2000 files and 2 GB |
 | HTML text in an object tool (`publish_version`) | At most 2 000 000 characters |
 | Source in the object context | The first 40 000 characters |
 | `read_source` | 60 000 characters by default, 200 000 at most for each read |
@@ -108,7 +113,8 @@ An artifact is an object of the Objects Protocol, so each NUU tool that knows ob
 
 ## What Is Not Possible
 
-- **More than one file.** A version is one HTML file, and each file needs its own signed URL. A relative link to a second file, a folder of assets, and a site with pages as files do not work. One file with tabs or `#` routes works.
+- **A link outside the folder.** A folder version reads only its own files. A root link (`/x.png`), a link to another version, and a link to another artifact do not work.
+- **A file of a page of one file.** A page of one file has no other files: a relative link of it fails (`missing_token`). Publish the folder.
 - **Server code.** A page has only the browser. It has no backend of its own.
 - **Data of the viewer in the page.** A page learns only whether its request worked ([[dev-knw-artf-bridge]]).
 - **A public link.** Each viewer signs in and must be able to read the artifact.

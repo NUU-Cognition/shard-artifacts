@@ -46,6 +46,7 @@ Read a NUU Artifact with no change: what it is, what its page says, how it chang
    ```
 
    - Write a large source into the scratch folder of the session, and read the parts that you need. A page can have 10 000 000 bytes, and much of it can be data or images.
+   - Of a folder version, the source is its HTML page only. The other files (videos, images) are not in the source: the page names them with relative links.
    - With no shell file, the object tool reads the source in parts: `flint orbh objects use "<address>" read_source --offset <n> --limit <n>` (60 000 characters by default, 200 000 at most; `complete: false` means that more text follows). An older version: `--input '{"version": <n>}'`.
 
    **Who has access** (the org, the publisher, and the shares):

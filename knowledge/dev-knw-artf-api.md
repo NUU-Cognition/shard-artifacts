@@ -22,7 +22,7 @@ A web URL is not a reference: take the id from its path. The object verbs (`flin
 ## The CLI: `flint orbh artifacts`
 
 ```bash
-flint orbh artifacts publish <file.html> [--title <text>] [--description <text>] [--org <slug> | --personal]
+flint orbh artifacts publish <file.html|folder> [--entry <path>] [--title <text>] [--description <text>] [--org <slug> | --personal]
                                          [--update <reference>] [--respond me|org|off] [--tools <app>.<tool>,…|off]
                                          [--no-add] [--json]
 flint orbh artifacts list [--org <slug> | --personal] [--mine | --shared [--cursor <next>]] [--query <text>] [--limit <n>] [--json]
@@ -38,11 +38,11 @@ flint orbh artifacts delete <reference> [--yes] [--json]
 
 | Command | What it does | Notes |
 |---|---|---|
-| `publish` | Publishes an HTML file as a new artifact, or as a new version (`--update`) | The file has at most 10 000 000 bytes. The default title is the text of `<title>`, else the file name. The default workspace is the org of the Flint above the working folder, else the personal workspace. With `ORBH_SESSION_ID`, it adds the object to the session; `--no-add` stops that. |
+| `publish` | Publishes an HTML file or a folder as a new artifact, or as a new version (`--update`) | The file has at most 10 000 000 bytes. A folder: its HTML page (`index.html`, or `--entry <path>`) and its files, at most 200 files, 100 MB for each file, 250 MB in all; hidden files are skipped, and a symbolic link is refused. The default title is the text of `<title>`, else the file or folder name. The default workspace is the org of the Flint above the working folder, else the personal workspace. With `ORBH_SESSION_ID`, it adds the object to the session; `--no-add` stops that. |
 | `list` | Lists the artifacts that you can read, newest first | `--mine`: only the artifacts that you published first. `--shared`: the artifacts that other people shared with you (with `--org`: with that org), newest share first. One read looks at a part of the share rows: when more follow, the output ends with the next command (`--cursor <next>`, with the same filters). `--query`: the title must match. `--limit`: 1 to 200, default 50. |
 | `get` | Prints the facts, or the HTML | `--source`: the HTML on stdout. `--out <file>`: the HTML into a file. `--version <n>`: one version (default: the current version, or the `@<n>` of the address). |
 | `open` | Opens the web page in the browser | With no terminal, and with `--print`, it only prints the URL. |
-| `versions` | Lists the versions, newest first | Text: the number, the size, the date, the creator, the current mark. `--json` also has the SHA-256. |
+| `versions` | Lists the versions, newest first | Text: the number, the size (a folder version: `<n> files, <size>`), the date, the creator, the current mark. `--json` also has the SHA-256, and `files` and `bytes` for a folder version. |
 | `responses` | Prints the responses that people sent from the page, newest first | `--limit`: 1 to 200, default 50. `--before <ms>`: only older responses (the `next` of the read before). |
 | `share` | Shares an artifact with an org or one person, as `reader` (the default) or `editor` | Only the access `owner`. A second share to the same subject changes its permission. `--json`: `{ shareId, created, changed, permission }`. |
 | `shares` | Prints who has access: the org of the artifact, the publisher, and each share with its id | The access `owner` sees each line. Another reader sees only the own lines. `--json`: `{ artifact, title, canManage, summary, lines }`. |
@@ -104,7 +104,7 @@ flint orbh objects use "<address>" <tool> [flags]        # run one tool; <tool> 
 |---|---|---|---|
 | `read_source` | read | `--offset <n>` `--limit <n>`; the version with `--input '{"version": <n>}'` | The HTML source in parts: 60 000 characters by default, 200 000 at most. `complete: false`: read again with `offset` = offset + length. |
 | `read_responses` | read | `--limit <n>` `--before <ms>` | The same read as `flint orbh artifacts responses`. |
-| `publish_version` | mutates | `--html <text>` or `--html-file <path>`; `--title`, `--description`, `--respond owner\|org\|off` | A new version from the full HTML text, at most 2 000 000 characters. Only with the access `owner`. For a larger file, use the CLI `publish --update`. |
+| `publish_version` | mutates | `--html <text>` or `--html-file <path>`; `--title`, `--description`, `--respond owner\|org\|off` | A new version from the full HTML text, at most 2 000 000 characters. Only with the access `owner`. For a larger file, use the CLI `publish --update`. It makes a version of one file: of a folder version, publish the folder with the CLI, else the media links of the page fail. |
 | `rename_artifact` | mutates | `--title <text>` `--description <text>` | 1 to 200 characters for the title, at most 2000 for the description. An empty description removes it. Only with the access `owner`. |
 
 The connector also has the tool `publish_artifact` (a new artifact from an HTML text of at most 2 000 000 characters, with `title` and an optional `org`). It is for an agent in another NUU app. In a Flint session, use the CLI `publish`.
@@ -115,7 +115,7 @@ The exit codes of `flint orbh objects use`: 0 ok; 1 a refusal of a flag or a nam
 
 The CLI calls this API. An agent uses the CLI, not the API. The facts are here for work on the tools.
 
-- Each call is `POST <site URL>/api/v1/<route>` with a JSON body of at most 100 000 characters.
+- Each call is `POST <site URL>/api/v1/<route>` with a JSON body of at most 200 000 characters.
 - The person is the NUU CLI access token of the request (`Authorization: Bearer`). The token proves only who the person is. The backend reads the org roles from NUU Orgs at the time of the call.
 - `X-NUU-Actor` names the session of the call (attribution only).
 - A refusal is a status that is not 2xx, with `{ error: { code, message } }`.
@@ -123,10 +123,11 @@ The CLI calls this API. An agent uses the CLI, not the API. The facts are here f
 | Route | Body | Answer |
 |---|---|---|
 | `/publish/begin` | `size`, `sha256`, `title?`, `description?`, `org?`, `update?`, `respond?`, `tools?` | `{ uploadId, artifactId, version, upload: { url, method: "PUT", headers, maxBytes, expiresAt } }` |
+| `/publish/begin` (a folder) | `files: [{ path, size, sha256 }]`, `entry?` (default `index.html`), and the same other fields | `{ uploadId, artifactId, version, entry, files: [{ path, url, method: "PUT", headers, maxBytes }], expiresAt }`. The server sets the `Content-Type` of each file from its extension. |
 | `/publish/commit` | `uploadId` | `{ artifact, version, created }` |
 | `/list` | `org?`, `query?`, `mine?`, `shared?`, `cursor?`, `limit?` | `{ items }`; a shared list also has `complete` and `next` (the `cursor` of the next read) |
 | `/get` | `artifact` | `{ artifact }` |
-| `/read-url` | `artifact`, `version?`, `download?` | `{ url, version, size, sha256, expiresAt }` |
+| `/read-url` | `artifact`, `version?`, `download?` | `{ url, version, size, sha256, expiresAt }`; a folder version also has `files` and `bytes`, and its `url` is the URL of its HTML page with a folder token (`/p/<token>/<key>`). `download` gives the HTML page only. |
 | `/rename` | `artifact`, `title?`, `description?` | `{ artifact }` |
 | `/delete` | `artifact` | `{ ok, id }` |
 | `/responses` | `artifact`, `limit?`, `before?` | `{ id, address, title, access, total, items, complete, next? }` |
@@ -151,9 +152,9 @@ The web app calls public functions of the backend with the sign-in of the browse
 | `self-target`, `same-org`, `personal-target` | 400 | A share to yourself, to the org of the artifact (its members can read it already), or to a personal workspace as an org. Share with another person or another org. |
 | `person-unknown`, `org-unknown` | 404 | NUU does not know the person (or the handle names no one person) or the org. Check the handle or the slug. |
 | `not-found` | 404 | The artifact does not exist, or you cannot read it. Check the reference and the org. |
-| `too-large` | 413 | The file is larger than 10 000 000 bytes, or a text is larger than its limit. Make it smaller. |
-| `hash-mismatch`, `upload-missing` | 409 | The upload did not arrive whole. Publish again one time. |
-| `limit` | 429 | Too many requests or too many versions. Wait, then try again one time. |
+| `too-large` | 413 | The file is larger than 10 000 000 bytes, a folder is larger than its limits (200 files, 100 MB for each file, 250 MB in all), or a text is larger than its limit. Make it smaller. |
+| `hash-mismatch`, `upload-missing` | 409 | The upload did not arrive whole (of a folder: the message names the first files that are missing). Publish again one time. |
+| `limit` | 429 | Too many requests or too many versions, or more than 300 uploads, 2000 files, or 2 GB of one person in 24 hours. Wait, then try again one time. |
 | `not-configured` | 503 | The deployment has no storage, or the tools of the bridge are off. Report it with the command. |
 | `tool-failed` | 502 | A tool of a NUU app refused or failed (the tools of the bridge). |
 | `outcome-unknown` | 504 | A tool of a NUU app gave no clear answer: it can have run. Look in the app before a second try. |
