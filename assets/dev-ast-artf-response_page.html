@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- A start for a NUU Artifact that sends a response of its viewer (the shard Artifacts, artf).
+     Copy this file, change the title, the question, and the fields, and keep the script.
+     Publish it with: flint orbh artifacts publish <file.html> --title "<title>" --respond me --json -->
+<title>Your answer, please</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #fbfaf7; --card: #ffffff; --fg: #1d1c1a; --muted: #6a675f; --line: #e2dfd6; --accent: #1f5fd1; --accent-fg: #ffffff; --ok: #1d7a46; --warn: #a15c00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #141413; --card: #1c1c1a; --fg: #f1efe9; --muted: #a29f95; --line: #33322e; --accent: #7ea8ff; --accent-fg: #0d1830; --ok: #6fd39a; --warn: #f0b35a; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 32px 16px 56px; background: var(--bg); color: var(--fg); font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 640px; margin: 0 auto; display: grid; gap: 20px; }
+  h1 { margin: 0 0 6px; font-size: 24px; letter-spacing: -0.01em; text-wrap: balance; }
+  header p { margin: 0; color: var(--muted); }
+  form { display: grid; gap: 16px; }
+  fieldset { margin: 0; padding: 16px 18px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+  legend { padding: 0 6px; font-weight: 650; }
+  label.option { display: grid; grid-template-columns: 20px 1fr; gap: 10px; align-items: start; padding: 7px 0; cursor: pointer; }
+  label.option input { margin: 3px 0 0; accent-color: var(--accent); }
+  label.option small { display: block; color: var(--muted); font-size: 13.5px; }
+  textarea { width: 100%; min-height: 84px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: inherit; font: inherit; resize: vertical; }
+  .bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  button { font: inherit; font-weight: 650; padding: 10px 18px; border-radius: 10px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-fg); cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  #status { color: var(--muted); font-size: 14px; }
+  #status.ok { color: var(--ok); font-weight: 600; }
+  #status.warn { color: var(--warn); }
+  footer { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Your answer, please</h1>
+    <p>Say here what you ask and why. Your answer goes to the session that made this page, after you confirm it in NUU Artifacts.</p>
+  </header>
+
+  <form id="form">
+    <fieldset>
+      <legend>Which option do you choose?</legend>
+      <label class="option"><input type="radio" name="choice" value="a" checked><span><b>Option A</b><small>One line about option A.</small></span></label>
+      <label class="option"><input type="radio" name="choice" value="b"><span><b>Option B</b><small>One line about option B.</small></span></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Note</legend>
+      <textarea id="note" name="note" placeholder="Optional."></textarea>
+    </fieldset>
+
+    <div class="bar">
+      <button type="submit" id="send" disabled>Send my answer</button>
+      <span id="status" role="status">Connecting to NUU Artifacts…</span>
+    </div>
+  </form>
+
+  <footer>This page has no sign-in. NUU Artifacts shows you the exact data before it sends your answer.</footer>
+</main>
+<script>
+  // The name of this form. The session reads it to know the fields of an answer. Change it with the fields.
+  const FORM = "answer-v1";
+
+  // The bridge: a message to the viewer page of NUU Artifacts, and its answer with the same id.
+  const waiting = new Map();
+  let count = 0;
+  function ask(kind, fields) {
+    const id = "m" + ++count;
+    return new Promise((resolve) => {
+      waiting.set(id, resolve);
+      window.parent.postMessage({ nuu: 1, kind, id, ...fields }, "*");
+    });
+  }
+  window.addEventListener("message", (event) => {
+    if (event.source !== window.parent || !event.data || event.data.nuu !== 1) return;
+    const resolve = waiting.get(event.data.id);
+    if (resolve) { waiting.delete(event.data.id); resolve(event.data); }
+  });
+
+  const status = document.getElementById("status");
+  const send = document.getElementById("send");
+  function say(text, kind) { status.textContent = text; status.className = kind || ""; }
+
+  // The text for each code of a request that did not work.
+  const REASONS = {
+    cancelled: "Not sent: you cancelled. You can send again.",
+    busy: "Not sent: another request waits for your answer in NUU Artifacts.",
+    blocked: "Not sent: you cancelled three times. Load the page again to send.",
+    forbidden: "Not sent: this page does not take an answer from you.",
+    limit: "Not sent: too many answers in a short time. Try again later.",
+    "too-large": "Not sent: the answer is too large.",
+  };
+
+  async function start() {
+    // "Open in a new tab" and a downloaded file have no viewer page.
+    if (window.parent === window) return say("Open this page in NUU Artifacts to send your answer.", "warn");
+    const timer = setTimeout(() => say("NUU Artifacts did not answer. Open this page in NUU Artifacts.", "warn"), 4000);
+    const ready = await ask("hello", {});
+    clearTimeout(timer);
+    if (!ready.respond) return say("This page does not take an answer from you.", "warn");
+    send.disabled = false;
+    say("Ready.");
+  }
+
+  document.getElementById("form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = new FormData(event.target);
+    send.disabled = true;
+    say("Confirm the data in the dialog of NUU Artifacts…");
+    // One JSON value, at most 64 000 bytes as JSON text. Send only what the question needs.
+    const result = await ask("respond", {
+      data: { form: FORM, choice: form.get("choice"), note: String(form.get("note") || "").trim() },
+    });
+    send.disabled = false;
+    if (result.ok) say("Sent. Thank you.", "ok");
+    else say(REASONS[result.code] || "Not sent (" + result.code + ").", "warn");
+  });
+
+  start();
+</script>
+</body>
+</html>

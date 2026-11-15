@@ -1,0 +1,12 @@
+shard-spec: "0.4.0"
+shard: "@nuucognition/artifacts"
+id: c5c0b70c-1444-4afd-a053-9ed060017280
+source:
+  id: 8d868c31-7bd8-4ea4-8267-62281b39e800
+version: "0.1.0"
+name: Artifacts
+shorthand: artf
+description: "Create, use, and read a NUU Artifact: an HTML page with versions that an agent publishes to NUU Artifacts, with responses of its viewer"
+dependencies:
+  "@nuucognition/flint": ""
+  "@nuucognition/orbh": "^0.8"
