@@ -1,5 +1,5 @@
 ---
-description: "The artifact bridge: how a page in the frame sends a response of its viewer, the messages and the result codes, the confirm, the page code, the rules of the server, the push that wakes the session, and the tools of NUU apps"
+description: "The artifact bridge: how a page in the frame sends a response of its viewer, the messages and the result codes, the confirm, the page code, the page state (a page keeps its fields for each viewer), the rules of the server, the push that wakes the session, and the tools of NUU apps"
 ---
 
 # Knowledge: The Artifact Bridge
@@ -32,12 +32,16 @@ The page sends a message to its parent window: `window.parent.postMessage(messag
 | `{ nuu: 1, kind: "hello", id }` | What can this page ask for? |
 | `{ nuu: 1, kind: "respond", id, data }` | Send `data` (a JSON value, at most 64 000 bytes as JSON text) as the response of the viewer |
 | `{ nuu: 1, kind: "use", id, tool, input }` | Run the tool `<app>.<tool>` with `input` (a JSON object) as the viewer |
+| `{ nuu: 1, kind: "state-save", id, form?, data }` | Keep `data` (a JSON value, at most 64 000 bytes) as the page state of the viewer. No confirm. § The Page State |
+| `{ nuu: 1, kind: "state-load", id, form? }` | Get the page state back |
+| `{ nuu: 1, kind: "state-clear", id, form? }` | Remove the page state |
 
 | Answer of the viewer page | Meaning |
 |---|---|
-| `{ nuu: 1, kind: "ready", id, respond, tools }` | `respond` is true when this viewer can send a response. `tools` is the list of the declared tool names. |
+| `{ nuu: 1, kind: "ready", id, respond, tools, state: true }` | `respond` is true when this viewer can send a response. `tools` is the list of the declared tool names. `state: true`: the viewer page keeps the page state (for each viewer). |
 | `{ nuu: 1, kind: "result", id, ok: true }` | The request worked |
 | `{ nuu: 1, kind: "result", id, ok: false, code }` | The request did not work |
+| `{ nuu: 1, kind: "state", id, data }` | The answer to `state-load`: the value, or `null` (no state) |
 
 `id` is a text of at most 64 characters, or a number. The answer has the same `id`. A message with no `nuu: 1` is not a message of the bridge.
 
@@ -55,7 +59,7 @@ The page sends a message to its parent window: `window.parent.postMessage(messag
 | `unknown` | A tool gave no clear answer: it can have run | The viewer page told the person to look in the app |
 | `failed` | Another failure | Tell the person to try again |
 
-**A page gets no data of its viewer.** `ready` says only what the page can ask for, and `result` says only whether the request worked. The reason: a page can send data to any server, so its author would see each value that the page gets.
+**A page gets no data of its viewer that its author did not have.** `ready` says only what the page can ask for, and `result` says only whether the request worked. The one value that comes back is the page state, and only from a page of the same publisher (§ The Page State). The reason: a page can send data to any server, so its author would see each value that the page gets.
 
 ## The Confirm
 
@@ -104,6 +108,44 @@ Rules for the page:
 3. Send one JSON value with a clear form, for example `{ form: "<name>-v1", choice, note }`. The name of the form lets the session read answers of an old version correctly.
 4. After `ok: true`, say that the answer is sent. After `cancelled`, keep the form.
 5. Do not ask for a secret. Do not send more data than the question needs.
+
+## The Page State
+
+A page in the frame has no storage of its own: its origin is opaque. Without the page state, a person who leaves the page (a reload, a closed tab, a link in NUU Artifacts, a new version) loses each mark and each field. With it, the page keeps one JSON value for each viewer and gets it back at the next load: on another day, in another browser, and in a new version of the same publisher.
+
+- **Use it for each page that keeps the state of a form:** marks, comments, a draft answer, filters, the open tab. A page that only shows content does not need it.
+- **Only the viewer reads it.** Not the owner of the artifact, not an admin, not an agent: the CLI and the object tools have no read of a state. To give an answer to the session, the page still sends a response (`respond`, with a confirm).
+- **The key** is the artifact, the person, the PUBLISHER of the shown version (the person, not the session), and the form key of the page. A new version that the same person publishes (from any session) gets the state of the older version. A version that another person publishes (an editor of a share) gets nothing.
+- **The form key** (`form`) is 1 to 64 characters: letters, digits, and `. _ : -`; the first one is a letter or a digit. Absent: `default`. Give a form key with a version (`review-v1`), and put a `schema` number in the value: when the form of the value changes, change the key, or read the old value with care.
+- **Two places.** The viewer page writes a copy into the browser at once, and sends the newest value to the backend at most each 1.5 seconds, and at once when the page goes. So a fast close of the tab loses nothing, and the state follows the person to another browser.
+- **One value at a load:** the newer of the copy and the backend. The viewer answers a load in at most 5 seconds: with no answer of the backend, the copy, else `ok: false` (never `null` for a state that did not load).
+- **`ok: true` of a save** says that the copy in the browser is written.
+- **Two tabs:** the last save wins. An open page gets no message when another tab saves.
+- **"Open in a new tab"** has no viewer page and no state. Tell the person that the marks are not kept there.
+- **Limits:** 64 000 bytes of JSON text; 20 states of one person on one artifact; 60 saves of one state in a minute; 30 new states of one person in 10 minutes. The page saves after a change (at once after a click, 300 ms after the last key), not in a loop.
+- **The life:** a state stays until the page clears it, or the artifact is deleted for good (30 days after a delete).
+- **The version pin.** With no `?v=` in the URL, the viewer keeps the version that it loaded. When a session publishes a new version, the person sees "v<n> is new · Load" and the page stays. The click loads the new version, which gets the state when the same person published it.
+
+### The Helper
+
+The asset `Shards/Artifacts/assets/ast-artf-response_page.html` has the helper `NuuState` (load, save, clear, autosave) and uses it to keep its fields. Copy the helper into each page that keeps the state of a form.
+
+```js
+const FORM_KEY = "review-v1";
+const saver = NuuState.autosave(FORM_KEY, () => ({ schema: 1, marks }), (result) => {
+  showStatus(result.ok ? "Saved" : "Not saved (" + result.code + ")");
+});
+const loaded = await NuuState.load(FORM_KEY);      // { ok: true, data } (data: the value, or null) | { ok: false, code }
+if (loaded.ok && loaded.data && loaded.data.schema === 1) marks = loaded.data.marks;
+// After a click: saver.now(). After a key in a text field: saver.later(). After a send: keep the state, or NuuState.clear(FORM_KEY).
+```
+
+Rules for the page:
+
+1. Load the state one time, at the start, before the person can change a field. When the load fails (`ok: false`), do not save in that visit: the save would replace a state that did not load. Say so to the person.
+2. Show the result of a save: "Saved" or "Not saved (<code>)".
+3. Keep a mark of a send in the state (for example the time and the keys of the sent items), so that a reload shows what is sent.
+4. Never put a secret into the state. The state is the data of the person, but the page and its publisher can read it.
 
 ## The Rules of the Server
 

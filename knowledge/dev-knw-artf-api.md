@@ -140,7 +140,7 @@ The CLI calls this API. An agent uses the CLI, not the API. The facts are here f
 
 ## The Functions of the Web App
 
-The web app calls public functions of the backend with the sign-in of the browser: `artifacts:workspaces`, `list`, `get`, `readUrl`, `rename`, `remove`, `bridge:respond`, `responses`, `use`, and `shares:forEntity`, `viewerAccess`, `share`, `setPermission`, `unshare`. These functions refuse the token of the NUU CLI. The Share dialog also reads the people search and the org search of the identity cache (`identityCache:searchPeople`, `searchOrgs`). The one function that the NUU CLI token can call is `objectsPush:version`: it gives only a fingerprint of an artifact, and only to its publisher ([[dev-knw-artf-bridge]] § The Push).
+The web app calls public functions of the backend with the sign-in of the browser: `artifacts:workspaces`, `list`, `get`, `readUrl`, `rename`, `remove`, `bridge:respond`, `responses`, `use`, `state:load`, `save`, `clear` (the page state: [[dev-knw-artf-bridge]] § The Page State), and `shares:forEntity`, `viewerAccess`, `share`, `setPermission`, `unshare`. These functions refuse the token of the NUU CLI, so no CLI command and no object tool reads a page state. The Share dialog also reads the people search and the org search of the identity cache (`identityCache:searchPeople`, `searchOrgs`). The one function that the NUU CLI token can call is `objectsPush:version`: it gives only a fingerprint of an artifact, and only to its publisher ([[dev-knw-artf-bridge]] § The Push).
 
 ## Errors
 

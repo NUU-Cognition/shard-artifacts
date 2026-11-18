@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- A start for a NUU Artifact that sends a response of its viewer (the shard Artifacts, artf).
      Copy this file, change the title, the question, and the fields, and keep the script.
+     The page keeps its fields for the viewer with the page state (NuuState): a person who leaves the page loses nothing.
      Publish it with: flint orbh artifacts publish <file.html> --title "<title>" --respond me --json -->
 <title>Your answer, please</title>
 <style>
@@ -33,6 +34,7 @@
   #status { color: var(--muted); font-size: 14px; }
   #status.ok { color: var(--ok); font-weight: 600; }
   #status.warn { color: var(--warn); }
+  #draft { color: var(--muted); font-size: 13px; }
   footer { color: var(--muted); font-size: 13px; }
 </style>
 </head>
@@ -59,13 +61,80 @@
       <button type="submit" id="send" disabled>Send my answer</button>
       <span id="status" role="status">Connecting to NUU Artifacts…</span>
     </div>
+    <span id="draft" aria-live="polite"></span>
   </form>
 
   <footer>This page has no sign-in. NUU Artifacts shows you the exact data before it sends your answer.</footer>
 </main>
 <script>
   // The name of this form. The session reads it to know the fields of an answer. Change it with the fields.
+  // It is also the form key of the page state: a new version with other fields needs a new name.
   const FORM = "answer-v1";
+
+  // THE PAGE STATE of NUU Artifacts (BRIDGE.md "The page state"): the page keeps one JSON value for its viewer, and
+  // gets it back at its next load (a reload, another day, a new version of the same publisher, another browser).
+  // Only the viewer reads it. "Open in a new tab" has no viewer page: then nothing is kept.
+  //   const s = await NuuState.load(FORM_KEY);   -> { ok: true, data } (data: the value, or null) | { ok: false, code }
+  //   await NuuState.save(FORM_KEY, value);      -> { ok: true } | { ok: false, code }
+  //   await NuuState.clear(FORM_KEY);            -> { ok: true } | { ok: false, code }
+  // A form key: 1 to 64 characters, letters, digits, and . _ : - (change it when the form of the value changes).
+  const NuuState = (() => {
+    const inViewer = window.parent !== window;
+    const waiting = new Map();
+    let count = 0;
+    window.addEventListener("message", (event) => {
+      if (event.source !== window.parent || !event.data || event.data.nuu !== 1) return;
+      const done = waiting.get(event.data.id);
+      if (done) { waiting.delete(event.data.id); done(event.data); }
+    });
+    function ask(kind, fields, ms) {
+      if (!inViewer) return Promise.resolve({ ok: false, code: "no-viewer" });
+      const id = "state-" + ++count;
+      return new Promise((resolve) => {
+        const timer = setTimeout(() => { waiting.delete(id); resolve({ ok: false, code: "timeout" }); }, ms || 8000);
+        waiting.set(id, (answer) => { clearTimeout(timer); resolve(answer); });
+        window.parent.postMessage({ nuu: 1, kind, id, ...fields }, "*");
+      });
+    }
+    let ready = null;
+    /** True when the viewer page keeps the page state. */
+    function available() {
+      if (!ready) ready = ask("hello", {}, 4000).then((answer) => answer.kind === "ready" && answer.state === true);
+      return ready;
+    }
+    async function load(form) {
+      if (!(await available())) return { ok: false, code: inViewer ? "no-state" : "no-viewer" };
+      const answer = await ask("state-load", { form });
+      return answer.kind === "state" ? { ok: true, data: answer.data } : { ok: false, code: answer.code || "failed" };
+    }
+    async function save(form, data) {
+      if (!(await available())) return { ok: false, code: inViewer ? "no-state" : "no-viewer" };
+      const answer = await ask("state-save", { form, data });
+      return answer.ok === true ? { ok: true } : { ok: false, code: answer.code || "failed" };
+    }
+    async function clear(form) {
+      if (!(await available())) return { ok: false, code: inViewer ? "no-state" : "no-viewer" };
+      const answer = await ask("state-clear", { form });
+      return answer.ok === true ? { ok: true } : { ok: false, code: answer.code || "failed" };
+    }
+    /**
+     * Saves the value of `read()` after each change: `later()` 300 ms after the last call (for typing), `now()` at
+     * once (for a click). It also saves when the page is hidden or goes. `onResult` gets each result.
+     */
+    function autosave(form, read, onResult) {
+      let timer = null;
+      const now = () => {
+        if (timer) { clearTimeout(timer); timer = null; }
+        return save(form, read()).then((result) => { if (onResult) onResult(result); return result; });
+      };
+      const later = () => { if (timer) clearTimeout(timer); timer = setTimeout(now, 300); };
+      document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && timer) now(); });
+      window.addEventListener("pagehide", () => { if (timer) now(); });
+      return { now, later };
+    }
+    return { inViewer, available, load, save, clear, autosave };
+  })();
+
 
   // The bridge: a message to the viewer page of NUU Artifacts, and its answer with the same id.
   const waiting = new Map();
@@ -85,7 +154,40 @@
 
   const status = document.getElementById("status");
   const send = document.getElementById("send");
+  const draft = document.getElementById("draft");
+  const formEl = document.getElementById("form");
   function say(text, kind) { status.textContent = text; status.className = kind || ""; }
+
+  // The page state: the fields of the form, and the time of the last send. Version 1 of its form.
+  let sentAt = null;
+  function read() {
+    const form = new FormData(formEl);
+    return { schema: 1, choice: form.get("choice"), note: String(form.get("note") || ""), sentAt };
+  }
+  function restore(value) {
+    if (!value || value.schema !== 1) return;
+    const choice = formEl.querySelector('input[name="choice"][value="' + CSS.escape(String(value.choice)) + '"]');
+    if (choice) choice.checked = true;
+    document.getElementById("note").value = typeof value.note === "string" ? value.note : "";
+    sentAt = typeof value.sentAt === "string" ? value.sentAt : null;
+  }
+  const saver = NuuState.autosave(FORM, read, (result) => {
+    draft.textContent = result.ok ? "Your draft is kept." : "Your draft is not kept (" + result.code + ").";
+  });
+  let keep = false;
+  async function startState() {
+    const loaded = await NuuState.load(FORM);
+    if (!loaded.ok) {
+      // Do not save in this visit: a save would replace a draft that did not load.
+      draft.textContent = loaded.code === "no-state" ? "" : "Your draft did not load (" + loaded.code + "). Changes in this visit are not kept.";
+      return;
+    }
+    restore(loaded.data);
+    if (sentAt) draft.textContent = "You sent this answer at " + new Date(sentAt).toLocaleString() + ".";
+    keep = true;
+  }
+  formEl.addEventListener("change", () => { if (keep) saver.now(); });
+  document.getElementById("note").addEventListener("input", () => { if (keep) saver.later(); });
 
   // The text for each code of a request that did not work.
   const REASONS = {
@@ -103,6 +205,7 @@
     const timer = setTimeout(() => say("NUU Artifacts did not answer. Open this page in NUU Artifacts.", "warn"), 4000);
     const ready = await ask("hello", {});
     clearTimeout(timer);
+    await startState();
     if (!ready.respond) return say("This page does not take an answer from you.", "warn");
     send.disabled = false;
     say("Ready.");
@@ -118,8 +221,12 @@
       data: { form: FORM, choice: form.get("choice"), note: String(form.get("note") || "").trim() },
     });
     send.disabled = false;
-    if (result.ok) say("Sent. Thank you.", "ok");
-    else say(REASONS[result.code] || "Not sent (" + result.code + ").", "warn");
+    if (result.ok) {
+      say("Sent. Thank you.", "ok");
+      // Keep the mark of the send, so that a reload shows it.
+      sentAt = new Date().toISOString();
+      if (keep) saver.now();
+    } else say(REASONS[result.code] || "Not sent (" + result.code + ").", "warn");
   });
 
   start();

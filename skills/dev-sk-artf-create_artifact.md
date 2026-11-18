@@ -1,5 +1,5 @@
 ---
-description: "Create a NUU Artifact: write one self-contained HTML file, or a folder of an HTML page and its media (videos, images), publish it with flint orbh artifacts publish, check the result, pin its URL, and record its address; with --respond for a page that takes an answer of its viewer"
+description: "Create a NUU Artifact: write one self-contained HTML file, or a folder of an HTML page and its media (videos, images), publish it with flint orbh artifacts publish, check the result, pin its URL, and record its address; with --respond for a page that takes an answer of its viewer, and the page state (NuuState) for each page that keeps the state of a form"
 ---
 
 > [!important] THIS FILE IS AN INSTRUCTION. WHEN REFERENCED IT IS MEANT TO BE TAKEN AS AN ACTION.
@@ -45,6 +45,13 @@ Use this skill when the work makes a page that a person must open: a report, a b
    - The page gets back only `{ ok: true }` or `{ ok: false, code }`. It gets no name and no data of the person.
    - Do not ask the person to type a secret into the page.
    - The page must say so when it has no viewer page ("Open in a new tab", a downloaded file).
+
+   **For each page that keeps the state of a form, add the page state.** Marks, comments, a draft answer, filters: a person who leaves the page by accident must not lose them. Copy the helper `NuuState` from the same asset, and follow [[dev-knw-artf-bridge]] § The Page State:
+   - Give a form key with a version (`review-v1`), and a `schema` number in the value.
+   - Load the state one time at the start. When the load fails, do not save in that visit, and say so.
+   - Save after each change (`saver.now()` after a click, `saver.later()` after a key), and show "Saved" or "Not saved (<code>)".
+   - The page state needs no `--respond`: each reader of the artifact keeps a state. Only that reader reads it. It does not reach your session: for an answer, the page sends a response.
+   - A new version that you publish keeps the state of the person (the same publisher). Change the form key when the form of the value changes.
 
 4. **Check the file or the folder.** One file: it is one `.html` file, it is not larger than the limit, and it has a `<title>`; when you can, open it in a browser and check that it shows with no other file. A folder: it has its HTML page, each link of the page is relative and points to a file of the folder (no `/` at the start, no `..` out of the folder), and no file is outside the limits.
 

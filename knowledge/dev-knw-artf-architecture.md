@@ -11,7 +11,7 @@ NUU Artifacts keeps HTML pages with versions and shows them to signed-in people.
 | Part | What it is | Where |
 |---|---|---|
 | Web app | The list and the viewer page for a person. Next.js on Vercel, with the one sign-in of NUU Account. | `https://artifacts.nuucognition.com` |
-| Backend | The records, the rules, and the APIs. Convex. Tables: `artifacts` (with the versions), `uploads`, `responses`, `uses`. | Production `calm-toucan-933`, dev `zany-pony-686` |
+| Backend | The records, the rules, and the APIs. Convex. Tables: `artifacts` (with the versions), `uploads`, `responses`, `uses`, `states` (the page state of each person). | Production `calm-toucan-933`, dev `zany-pony-686` |
 | NUU Storage | The bytes of each version. A Cloudflare Worker in front of an R2 bucket. NUU Artifacts is the app `artifacts` of it. | `https://storage.nuucognition.com` (dev: `https://storage-dev.nuucognition.com`) |
 | Connector | The NUU Connect surface of the backend (`/connect/v1`). It makes an artifact an object, with tools. | The site URL of the backend |
 | CLI | `flint orbh artifacts`. It calls the HTTP API of the backend (`/api/v1`) with the sign-in of the NUU CLI. | The Flint CLI |
@@ -70,6 +70,7 @@ The page runs in a frame that is closed against NUU:
 | Delete, share, change who can respond or the tools | The publisher of the artifact, an owner or admin of its org, and the person of a personal workspace (the access `owner`) |
 | Send a response from the page | The audience of the artifact: only the publisher (`me`), or each person who can read it (`org`) |
 | Read the responses | The access `owner` reads each response. Each other reader reads only the own responses. |
+| Keep a page state, and read it | Each person who can read the artifact, for the own state only. Nobody reads the state of another person: not the owner, not an admin, not an agent. A state goes back only to a page of the same publisher. |
 
 - For the CLI and the connector, the backend reads the org roles from NUU Orgs at the time of each call. A person who left an org loses its artifacts at the next call.
 - A missing artifact and an artifact that the person cannot read give the same answer: `not-found`.
@@ -109,13 +110,18 @@ An artifact is an object of the Objects Protocol, so each NUU tool that knows ob
 | Responses of one person | At most 30 in 10 minutes |
 | Responses of one artifact | At most 2000 |
 | A read of the responses | At most 200 rows and 2 000 000 bytes; `next` gives the rest |
-| A deleted artifact | The bytes go after 30 days |
+| One page state | A JSON value, at most 64 000 bytes as JSON text |
+| Page states of one person on one artifact | At most 20 (the form keys of all the publishers) |
+| Saves of one page state | At most 60 in one minute (the viewer page sends at most one each 1.5 seconds) |
+| New page states of one person | At most 30 in 10 minutes |
+| A deleted artifact | The bytes and the page states go after 30 days |
 
 ## What Is Not Possible
 
 - **A link outside the folder.** A folder version reads only its own files. A root link (`/x.png`), a link to another version, and a link to another artifact do not work.
 - **A file of a page of one file.** A page of one file has no other files: a relative link of it fails (`missing_token`). Publish the folder.
 - **Server code.** A page has only the browser. It has no backend of its own.
-- **Data of the viewer in the page.** A page learns only whether its request worked ([[dev-knw-artf-bridge]]).
+- **Data of the viewer in the page.** A page learns only whether its request worked, and its own page state from a page of the same publisher ([[dev-knw-artf-bridge]] § The Page State).
+- **A page state in a new tab.** "Open in a new tab" has no viewer page, so the page keeps nothing there.
 - **A public link.** Each viewer signs in and must be able to read the artifact.
 - **An edit of a version.** A version never changes. A change is a new version.

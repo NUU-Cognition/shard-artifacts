@@ -28,6 +28,7 @@ One header line, then the page of the artifact in a frame that fills the rest of
 | "Back to the list" | Goes to the list |
 | The title | The name of the artifact |
 | The version button | Shows the versions. A click on one shows that version (`?v=<n>` in the URL). |
+| "v<n> is new · Load" | Shows when a new version came while the page was open. The page stays until the person clicks it: a new version does not load by itself. |
 | "Responses: n" | Opens the panel of the responses: each one for the access `owner`, else the own ones |
 | "Copy address" | Copies the address of the object. A person can paste it to an agent. |
 | "Open in a new tab" | Opens the page with no viewer page around it |
@@ -37,6 +38,7 @@ One header line, then the page of the artifact in a frame that fills the rest of
 
 - The page in the frame runs scripts, forms, pop-ups, and downloads. It cannot read the sign-in of the person.
 - "Open in a new tab" and a downloaded file have no viewer page. A page that sends a response cannot send there, and it must say so.
+- **The page keeps the work of the person** when it uses the page state: marks, comments, and fields come back after a reload, a closed tab, a link, a new version of the same publisher, and in another browser. Only that person sees them. A page that keeps no state loses them, as before.
 
 ## A Response, From the View of the Person
 
@@ -55,6 +57,7 @@ When you give an artifact to a person, say:
 - **The URL**, and the title of the artifact.
 - **What the page is**: a report, a board, a form.
 - **For a form**: what you ask, who can answer (only this person, or each member of the org), and that NUU Artifacts shows a confirm with the data before it sends.
-- **After a new version**: that the same URL shows the new version, and what changed.
+- **After a new version**: that the same URL shows the new version, and what changed. A person who has the page open sees "v<n> is new · Load".
+- **For a page that keeps its state**: that the marks and fields stay for this person, and that "Open in a new tab" does not keep them.
 
 Do not tell a person to open an HTML file by path on another computer. Do not ask a person to type a secret into a page.

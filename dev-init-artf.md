@@ -17,6 +17,7 @@ A **NUU Artifact** is one HTML page that NUU Artifacts keeps, with all its versi
 - A person with the access `owner` can share it with another org or with one person, as `reader` or `editor`.
 - An artifact is an object of the Objects Protocol. Its address is `@v1/<org>/artifact/<id>#artifacts`, and its URI is `nuu://artifacts/artifact/<id>`. A session can keep it in its context.
 - A page can send a response of its viewer back to the session that published it. This is the **bridge**.
+- A page can keep its **page state** for each viewer (its fields, its marks), so that a person who leaves the page loses nothing. Only that person reads it.
 
 **A NUU Artifact is not a Mesh artifact.** A Mesh artifact is a typed note of a Flint (`(Task)`, `(Report)`). The command `flint orbh artifact` (singular) records the Mesh files of a session. The command `flint orbh artifacts` (with an `s`) is the CLI of NUU Artifacts. In this shard, "artifact" always means a NUU Artifact.
 
@@ -36,7 +37,8 @@ A **NUU Artifact** is one HTML page that NUU Artifacts keeps, with all its versi
 | page | The HTML of the artifact, in the frame of the viewer page. It has no sign-in. |
 | response | One JSON value that a person sent from a page, after a confirm |
 | audience | Who can send a response: `me` (only the publisher), `org` (each member of the org), or `off` |
-| bridge | The messages between the page and the viewer page that carry a response |
+| bridge | The messages between the page and the viewer page that carry a response, a tool call, or the page state |
+| page state | One JSON value that a page keeps for one viewer (`state-save`, `state-load`). Only the viewer reads it, and only a page of the same publisher gets it back. |
 | push | The live signal that makes Orbh read an artifact at once when it changes |
 
 ## The Three Actions
@@ -80,5 +82,5 @@ HTML file → publish (v1) → publish --update (v2, v3, …) → delete
 
 - [[dev-knw-artf-architecture]]: the parts, the path of a publish and of a read, who can do what, and the limits.
 - [[dev-knw-artf-api]]: each command of the CLI, the object tools, the HTTP API, and the error codes.
-- [[dev-knw-artf-bridge]]: the messages of a page that sends a response, the confirm, the push, and the page code.
+- [[dev-knw-artf-bridge]]: the messages of a page that sends a response, the confirm, the push, the page code, and the page state with its helper `NuuState`.
 - [[dev-knw-artf-person_view]]: what a person sees and does in the web app.
