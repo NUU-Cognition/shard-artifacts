@@ -111,7 +111,7 @@ An artifact is an object of the Objects Protocol, so each NUU tool that knows ob
 | Responses of one artifact | At most 2000 |
 | A read of the responses | At most 200 rows and 2 000 000 bytes; `next` gives the rest |
 | One page state | A JSON value, at most 64 000 bytes as JSON text |
-| Page states of one person on one artifact | At most 20 (the form keys of all the publishers) |
+| Live page states of one person on one artifact | At most 20 for the pages of one publisher (a cleared state does not count) |
 | Saves of one page state | At most 60 in one minute (the viewer page sends at most one each 1.5 seconds) |
 | New page states of one person | At most 30 in 10 minutes |
 | A deleted artifact | The bytes and the page states go after 30 days |

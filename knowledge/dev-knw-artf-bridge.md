@@ -118,11 +118,11 @@ A page in the frame has no storage of its own: its origin is opaque. Without the
 - **The key** is the artifact, the person, the PUBLISHER of the shown version (the person, not the session), and the form key of the page. A new version that the same person publishes (from any session) gets the state of the older version. A version that another person publishes (an editor of a share) gets nothing.
 - **The form key** (`form`) is 1 to 64 characters: letters, digits, and `. _ : -`; the first one is a letter or a digit. Absent: `default`. Give a form key with a version (`review-v1`), and put a `schema` number in the value: when the form of the value changes, change the key, or read the old value with care.
 - **Two places.** The viewer page writes a copy into the browser at once, and sends the newest value to the backend at most each 1.5 seconds, and at once when the page goes. So a fast close of the tab loses nothing, and the state follows the person to another browser.
-- **One value at a load:** the newer of the copy and the backend. The viewer answers a load in at most 5 seconds: with no answer of the backend, the copy, else `ok: false` (never `null` for a state that did not load).
+- **One value at a load:** the copy in the browser when it did not reach the backend and nothing changed in the backend after it; else the backend. The order is a revision of the backend (one more at each save and each clear), never a clock. A copy that loses stays in that browser for 30 days as a conflict copy, for a recovery by hand; the page does not get it. The viewer answers a load in at most 5 seconds: with no answer of the backend, the copy, else `ok: false` (never `null` for a state that did not load).
 - **`ok: true` of a save** says that the copy in the browser is written.
 - **Two tabs:** the last save wins. An open page gets no message when another tab saves.
 - **"Open in a new tab"** has no viewer page and no state. Tell the person that the marks are not kept there.
-- **Limits:** 64 000 bytes of JSON text; 20 states of one person on one artifact; 60 saves of one state in a minute; 30 new states of one person in 10 minutes. The page saves after a change (at once after a click, 300 ms after the last key), not in a loop.
+- **Limits:** 64 000 bytes of JSON text; 20 live states of one person for the pages of one publisher on one artifact (a cleared state does not count); 60 saves of one state in a minute; 30 new states of one person in 10 minutes. The page saves after a change (at once after a click, 300 ms after the last key), not in a loop.
 - **The life:** a state stays until the page clears it, or the artifact is deleted for good (30 days after a delete).
 - **The version pin.** With no `?v=` in the URL, the viewer keeps the version that it loaded. When a session publishes a new version, the person sees "v<n> is new · Load" and the page stays. The click loads the new version, which gets the state when the same person published it.
 
@@ -143,7 +143,7 @@ if (loaded.ok && loaded.data && loaded.data.schema === 1) marks = loaded.data.ma
 Rules for the page:
 
 1. Load the state one time, at the start, before the person can change a field. When the load fails (`ok: false`), do not save in that visit: the save would replace a state that did not load. Say so to the person.
-2. Show the result of a save: "Saved" or "Not saved (<code>)".
+2. Show the result of a save: "Saved" or "Not saved (<code>)". A save 300 ms after the last key can miss a tab that the person closes inside those 300 ms: the viewer gets no message. For a field where each key must stay, call `saver.now()` at each input.
 3. Keep a mark of a send in the state (for example the time and the keys of the sent items), so that a reload shows what is sent.
 4. Never put a secret into the state. The state is the data of the person, but the page and its publisher can read it.
 
